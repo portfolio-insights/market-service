@@ -1,0 +1,37 @@
+name: Deploy Microservice to EC2
+
+# Trigger this workflow on manual invocation or when main is pushed and backend or market service changes
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the code from the GitHub repo
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Set up SSH agent using the EC2 private key stored in GitHub Secrets
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_INSTANCE_SSH_PRIVATE_KEY }}
+
+      # Step 3: SSH into EC2 instance, pull the latest changes from the main branch, start Go server
+      - name: SSH and Pull Repo
+        run: |
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST_ADDRESS }} << EOF
+            cd portfolio-insights/market-service
+            git pull origin main
+            echo "TIINGO_API_KEY=${{ secrets.TIINGO_API_KEY }}" > .env
+            go build -o market-service main.go
+            pkill -f market-service || true
+            nohup ./market-service >> market.log 2>&1 &
+          EOF
