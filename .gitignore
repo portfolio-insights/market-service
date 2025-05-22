@@ -8,8 +8,6 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
 *.local
 
 # Editor directories and files
@@ -24,10 +22,6 @@ dist-ssr
 *.sw?
 
 # Personal Additions
-.venv
-__pycache__
-ISSUE_TEMPLATE.md
 .env
 project_notes
-testing.py
 dev_journal
