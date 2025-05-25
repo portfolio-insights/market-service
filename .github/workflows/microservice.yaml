@@ -22,12 +22,12 @@ jobs:
       - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.EC2_INSTANCE_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
 
       # Step 3: SSH into EC2 instance, pull the latest changes from the main branch, start Go server
-      - name: SSH and Pull Repo
+      - name: SSH and deploy microservice
         run: |
-          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST_ADDRESS }} << EOF
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << EOF
             cd portfolio-insights/market-service
             git pull origin main
             echo "TIINGO_API_KEY=${{ secrets.TIINGO_API_KEY }}" > .env
