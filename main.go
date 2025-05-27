@@ -16,9 +16,11 @@ import (
 	"github.com/joho/godotenv" // For loading a .env file
 	"io"                       // For reading from response bodies
 	"log"                      // For printing logs to the terminal
+	"net"                      // For extended API request error handling
 	"net/http"                 // For making and serving HTTP requests
 	"os"                       // For reading environment variables
 	"strconv"                  // For converting strings to numbers (e.g. price query param to float)
+	"time"                     // For time values, used in network timeouts
 )
 
 // PricePoint represents a single entry from the Tiingo historical price API
@@ -52,7 +54,7 @@ func init() {
 func main() {
 	// --------- Health Check ---------
 
-	// Define /health-check route
+	// Define /health route
 	// This verifies that the Go microservice is running and that it is connected to the Tiingo API
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		apiKey := os.Getenv("TIINGO_API_KEY")
@@ -62,10 +64,25 @@ func main() {
 		}
 
 		// Make lightweight request to Tiingo using stable ticker (SPY)
+		client := &http.Client{ // Implement network timeout
+			Timeout: 3 * time.Second,
+		}
 		url := fmt.Sprintf("https://api.tiingo.com/tiingo/daily/SPY/prices?token=%s", apiKey)
-		resp, err := http.Get(url)
-		if err != nil || resp.StatusCode != 200 {
-			http.Error(w, "error fetching from Tiingo", http.StatusBadGateway)
+		resp, err := client.Get(url)
+		if err != nil {
+			// Check if error is a net.Error and is a timeout
+			// net.Error provides for expanded error handling, including checking type of error (e.g. timeout)
+			// The standard syntax for type assertions is v, ok := x.(T)
+			netErr, ok := err.(net.Error)
+			if ok && netErr.Timeout() {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusGatewayTimeout)
+				w.Write([]byte(`{"detail": "Network timeout."}`))
+				return
+			}
+
+			// Other network-related error
+			http.Error(w, `{"detail": "Network error."}`, http.StatusBadGateway)
 			return
 		}
 		defer resp.Body.Close() // Clean up response body
