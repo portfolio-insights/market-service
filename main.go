@@ -157,6 +157,13 @@ func main() {
 		// Error is ignored here for brevity, but should be handled in production.
 		// &tiingoPrices passes a pointer so json.Unmarshal can populate the slice in place
 		json.Unmarshal(body, &tiingoPrices)
+		if len(tiingoPrices) == 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(fmt.Sprintf(`{"detail": "No price data found for ticker %s."}`, ticker)))
+			return
+		}
+		// Encode to JSON and return if no errors encountered
 		w.Header().Set("Content-Type", "application/json") // Set headers
 		json.NewEncoder(w).Encode(tiingoPrices)            // Format as JSON
 	})
