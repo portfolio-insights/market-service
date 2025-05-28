@@ -209,7 +209,9 @@ func main() {
 			return
 		}
 		if len(result) == 0 {
-			http.Error(w, `{"valid": false, "message": "Ticker not found."}`, http.StatusBadRequest)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(fmt.Sprintf(`{"detail": "No price data found for ticker %s."}`, ticker)))
 			return
 		}
 
