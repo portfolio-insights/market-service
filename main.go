@@ -65,7 +65,7 @@ func main() {
 
 		// Make lightweight request to Tiingo using stable ticker (SPY)
 		client := &http.Client{ // Implement network timeout
-			Timeout: 3 * time.Second,
+			Timeout: 5 * time.Second,
 		}
 		url := fmt.Sprintf("https://api.tiingo.com/tiingo/daily/SPY/prices?token=%s", apiKey)
 		resp, err := client.Get(url)
