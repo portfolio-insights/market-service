@@ -117,6 +117,9 @@ func main() {
 		}
 
 		// Send GET request to Tiingo API to retrieve stock price history
+		client := &http.Client{ // Implement network timeout
+			Timeout: 8 * time.Second,
+		}
 		url := fmt.Sprintf(
 			"https://api.tiingo.com/tiingo/daily/%s/prices?startDate=%s&resampleFreq=%s&token=%s",
 			ticker,
@@ -124,10 +127,22 @@ func main() {
 			resampleFreq,
 			apiKey,
 		)
-		resp, err := http.Get(url)
+		resp, err := client.Get(url)
 		// OK response is expected to have no error and a 200 status code
-		if err != nil || resp.StatusCode != 200 {
-			http.Error(w, "error fetching from Tiingo", http.StatusBadGateway)
+		if err != nil {
+			// Check if error is a net.Error and is a timeout
+			// net.Error provides for expanded error handling, including checking type of error (e.g. timeout)
+			// The standard syntax for type assertions is v, ok := x.(T)
+			netErr, ok := err.(net.Error)
+			if ok && netErr.Timeout() {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusGatewayTimeout)
+				w.Write([]byte(`{"detail": "Network timeout."}`))
+				return
+			}
+
+			// Other network-related error
+			http.Error(w, `{"detail": "Network error."}`, http.StatusBadGateway)
 			return
 		}
 		// "defer" schedules a function to run after the current function finishes
