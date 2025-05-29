@@ -7,7 +7,7 @@ echo "✅ Done."
 
 echo ""
 echo "⚒️ Building new executable..."
-go build -o market-service main.go
+go build -o market-service
 echo "✅ Done."
 
 echo ""
