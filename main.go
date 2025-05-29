@@ -59,7 +59,7 @@ func main() {
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		apiKey := os.Getenv("TIINGO_API_KEY")
 		if apiKey == "" {
-			http.Error(w, "missing API key", http.StatusInternalServerError)
+			GenerateError(w, "Missing API key.", http.StatusInternalServerError)
 			return
 		}
 
@@ -75,14 +75,12 @@ func main() {
 			// The standard syntax for type assertions is v, ok := x.(T)
 			netErr, ok := err.(net.Error)
 			if ok && netErr.Timeout() {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusGatewayTimeout)
-				w.Write([]byte(`{"detail": "Network timeout."}`))
+				GenerateError(w, "Network timeout.", http.StatusGatewayTimeout)
 				return
 			}
 
 			// Other network-related error
-			http.Error(w, `{"detail": "Network error."}`, http.StatusBadGateway)
+			GenerateError(w, "Network error.", http.StatusBadGateway)
 			return
 		}
 		defer resp.Body.Close() // Clean up response body
@@ -105,14 +103,14 @@ func main() {
 		resampleFreq := r.URL.Query().Get("interval")
 
 		if ticker == "" || startDate == "" || resampleFreq == "" {
-			http.Error(w, "missing query parameter", http.StatusBadRequest)
+			GenerateError(w, "Missing query parameter", http.StatusBadRequest)
 			return
 		}
 
 		// Load in Tiingo API key
 		apiKey := os.Getenv("TIINGO_API_KEY")
 		if apiKey == "" {
-			http.Error(w, "missing API key", http.StatusInternalServerError)
+			GenerateError(w, "Missing API key.", http.StatusInternalServerError)
 			return
 		}
 
@@ -135,14 +133,12 @@ func main() {
 			// The standard syntax for type assertions is v, ok := x.(T)
 			netErr, ok := err.(net.Error)
 			if ok && netErr.Timeout() {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusGatewayTimeout)
-				w.Write([]byte(`{"detail": "Network timeout."}`))
+				GenerateError(w, "Network timeout.", http.StatusGatewayTimeout)
 				return
 			}
 
 			// Other network-related error
-			http.Error(w, `{"detail": "Network error."}`, http.StatusBadGateway)
+			GenerateError(w, "Network error.", http.StatusBadGateway)
 			return
 		}
 		// "defer" schedules a function to run after the current function finishes
@@ -158,9 +154,7 @@ func main() {
 		// &tiingoPrices passes a pointer so json.Unmarshal can populate the slice in place
 		json.Unmarshal(body, &tiingoPrices)
 		if len(tiingoPrices) == 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(fmt.Sprintf(`{"detail": "No price data found for ticker %s."}`, ticker)))
+			GenerateError(w, fmt.Sprintf("No price data found for ticker %s.", ticker), http.StatusNotFound)
 			return
 		}
 		// Encode to JSON and return if no errors encountered
@@ -176,26 +170,26 @@ func main() {
 		direction := r.URL.Query().Get("direction")
 
 		if ticker == "" || priceStr == "" || direction == "" {
-			http.Error(w, "missing query parameter", http.StatusBadRequest)
+			GenerateError(w, "Missing query parameter", http.StatusBadRequest)
 			return
 		}
 
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
-			http.Error(w, "invalid price", http.StatusBadRequest)
+			GenerateError(w, "invalid price", http.StatusBadRequest)
 			return
 		}
 
 		apiKey := os.Getenv("TIINGO_API_KEY")
 		if apiKey == "" {
-			http.Error(w, "missing API key", http.StatusInternalServerError)
+			GenerateError(w, "Missing API key.", http.StatusInternalServerError)
 			return
 		}
 
 		url := fmt.Sprintf("https://api.tiingo.com/iex/%s?token=%s", ticker, apiKey)
 		resp, err := http.Get(url)
 		if err != nil || resp.StatusCode != 200 {
-			http.Error(w, `{"valid": false, "message": "Ticker not found or data unavailable."}`, http.StatusBadRequest)
+			GenerateError(w, "Network error.", http.StatusBadGateway)
 			return
 		}
 		defer resp.Body.Close()
@@ -203,15 +197,8 @@ func main() {
 		body, _ := io.ReadAll(resp.Body)
 		var result []LastPrice
 		json.Unmarshal(body, &result)
-		// Verify price data has been successfully retrieved
-		if err != nil {
-			http.Error(w, `{"valid": false, "message": "Ticker not found."}`, http.StatusInternalServerError)
-			return
-		}
 		if len(result) == 0 {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(fmt.Sprintf(`{"detail": "No price data found for ticker %s."}`, ticker)))
+			GenerateError(w, fmt.Sprintf("No price data found for ticker %s.", ticker), http.StatusNotFound)
 			return
 		}
 
@@ -231,7 +218,7 @@ func main() {
 		// Check for invalid alert
 		if (direction == "below" && currentPrice < price) || (direction == "above" && currentPrice > price) {
 			msg := fmt.Sprintf("Current price is $%.2f, already %s $%.2f.", currentPrice, direction, price)
-			http.Error(w, fmt.Sprintf(`{"message": "%s"}`, msg), http.StatusBadRequest)
+			GenerateError(w, msg, http.StatusBadRequest)
 			return
 		}
 
