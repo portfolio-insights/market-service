@@ -186,9 +186,20 @@ func main() {
 			return
 		}
 
+		client := &http.Client{ // Implement network timeout
+			Timeout: 8 * time.Second,
+		}
 		url := fmt.Sprintf("https://api.tiingo.com/iex/%s?token=%s", ticker, apiKey)
-		resp, err := http.Get(url)
-		if err != nil || resp.StatusCode != 200 {
+		resp, err := client.Get(url)
+
+		if err != nil {
+			netErr, ok := err.(net.Error)
+			if ok && netErr.Timeout() {
+				GenerateError(w, "Network timeout.", http.StatusGatewayTimeout)
+				return
+			}
+
+			// Other network-related error
 			GenerateError(w, "Network error.", http.StatusBadGateway)
 			return
 		}
