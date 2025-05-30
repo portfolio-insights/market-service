@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 echo ""
 echo "🛑 Stopping existing microservice deployment ..."
