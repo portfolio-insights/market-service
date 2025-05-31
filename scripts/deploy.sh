@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+trap 'echo "❌ Deployment failed."' ERR
 
 echo ""
 echo "🛑 Stopping existing microservice deployment ..."
