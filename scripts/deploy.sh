@@ -9,7 +9,7 @@ echo "✅ Done."
 
 echo ""
 echo "⚒️ Building new executable..."
-go build -o market-service
+go build -o market-service ./src
 echo "✅ Done."
 
 echo ""
