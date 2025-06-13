@@ -25,10 +25,13 @@ echo "✅ Done."
 # Run health check
 echo ""
 echo "🔍 Verifying health endpoint..."
-echo ""
 if curl --fail http://localhost:8080/health; then
+  echo ""
+  echo ""
   echo "🎉 Microservice up and running."
 else
+  echo ""
+  echo ""
   echo "❌ Health check failed. Microservice did not start correctly."
   exit 1
 fi
