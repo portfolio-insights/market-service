@@ -22,6 +22,13 @@ echo "🚀 Running executable..."
 nohup ./market-service >> market.log 2>&1 &
 echo "✅ Done."
 
+# Run health check
 echo ""
-echo "🎉 Microservice up and running."
+echo "🔍 Verifying health endpoint..."
 echo ""
+if curl --fail http://localhost:8080/health; then
+  echo "🎉 Microservice up and running."
+else
+  echo "❌ Health check failed. Microservice did not start correctly."
+  exit 1
+fi
