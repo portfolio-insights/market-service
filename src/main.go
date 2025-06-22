@@ -51,12 +51,26 @@ func init() {
 	}
 }
 
+// loggingMiddleware adds basic request logging to all endpoints
+func loggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		log.Printf("Started %s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+		log.Printf("Completed %s %s in %v", r.Method, r.URL.Path, time.Since(start))
+	}
+}
+
 func main() {
+	// Log server startup
+	log.Println("🚀 Starting Market Service...")
+
 	// --------- Health Check ---------
 
 	// Define /health route
 	// This verifies that the Go microservice is running and that it is connected to the Tiingo API
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Health check requested")
 		apiKey := os.Getenv("TIINGO_API_KEY")
 		if apiKey == "" {
 			GenerateError(w, "Missing API key.", http.StatusInternalServerError)
@@ -64,9 +78,7 @@ func main() {
 		}
 
 		// Make lightweight request to Tiingo using stable ticker (SPY)
-		client := &http.Client{ // Implement network timeout
-			Timeout: 5 * time.Second,
-		}
+		client := &http.Client{}
 		url := fmt.Sprintf("https://api.tiingo.com/tiingo/daily/SPY/prices?token=%s", apiKey)
 		resp, err := client.Get(url)
 		if err != nil {
@@ -102,8 +114,13 @@ func main() {
 		startDate := r.URL.Query().Get("startDate")
 		resampleFreq := r.URL.Query().Get("interval")
 
+		log.Printf("Fetching stock data - Ticker: %s, StartDate: %s, Interval: %s", ticker, startDate, resampleFreq)
+
 		if ticker == "" || startDate == "" || resampleFreq == "" {
-			GenerateError(w, "Missing query parameter", http.StatusBadRequest)
+			errMsg := fmt.Sprintf("Missing required parameters - ticker: %v, startDate: %v, interval: %v",
+				ticker != "", startDate != "", resampleFreq != "")
+			log.Println("ERROR: Bad request -", errMsg)
+			GenerateError(w, "Missing required parameters", http.StatusBadRequest)
 			return
 		}
 
@@ -115,9 +132,7 @@ func main() {
 		}
 
 		// Send GET request to Tiingo API to retrieve stock price history
-		client := &http.Client{ // Implement network timeout
-			Timeout: 8 * time.Second,
-		}
+		client := &http.Client{}
 		url := fmt.Sprintf(
 			"https://api.tiingo.com/tiingo/daily/%s/prices?startDate=%s&resampleFreq=%s&token=%s",
 			ticker,
@@ -154,9 +169,12 @@ func main() {
 		// &tiingoPrices passes a pointer so json.Unmarshal can populate the slice in place
 		json.Unmarshal(body, &tiingoPrices)
 		if len(tiingoPrices) == 0 {
-			GenerateError(w, fmt.Sprintf("No price data found for ticker %s.", ticker), http.StatusNotFound)
+			errMsg := fmt.Sprintf("No price data found for ticker: %s", ticker)
+			log.Println("WARN:", errMsg)
+			GenerateError(w, errMsg, http.StatusNotFound)
 			return
 		}
+		log.Printf("Successfully retrieved %d price points for ticker: %s", len(tiingoPrices), ticker)
 		// Encode to JSON and return if no errors encountered
 		w.Header().Set("Content-Type", "application/json") // Set headers
 		json.NewEncoder(w).Encode(tiingoPrices)            // Format as JSON
@@ -169,14 +187,21 @@ func main() {
 		priceStr := r.URL.Query().Get("price")
 		direction := r.URL.Query().Get("direction")
 
+		log.Printf("Checking alert - Ticker: %s, Price: %s, Direction: %s", ticker, priceStr, direction)
+
 		if ticker == "" || priceStr == "" || direction == "" {
-			GenerateError(w, "Missing query parameter", http.StatusBadRequest)
+			errMsg := fmt.Sprintf("Missing required parameters - ticker: %v, price: %v, direction: %v",
+				ticker != "", priceStr != "", direction != "")
+			log.Println("ERROR: Bad request -", errMsg)
+			GenerateError(w, "Missing required parameters", http.StatusBadRequest)
 			return
 		}
 
 		price, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
-			GenerateError(w, "invalid price", http.StatusBadRequest)
+			errMsg := fmt.Sprintf("Invalid price format: %s", priceStr)
+			log.Println("ERROR: Bad request -", errMsg)
+			GenerateError(w, "Invalid price format", http.StatusBadRequest)
 			return
 		}
 
@@ -186,9 +211,7 @@ func main() {
 			return
 		}
 
-		client := &http.Client{ // Implement network timeout
-			Timeout: 8 * time.Second,
-		}
+		client := &http.Client{}
 		url := fmt.Sprintf("https://api.tiingo.com/iex/%s?token=%s", ticker, apiKey)
 		resp, err := client.Get(url)
 
@@ -209,7 +232,9 @@ func main() {
 		var result []LastPrice
 		json.Unmarshal(body, &result)
 		if len(result) == 0 {
-			GenerateError(w, fmt.Sprintf("No price data found for ticker %s.", ticker), http.StatusNotFound)
+			errMsg := fmt.Sprintf("No price data found for ticker: %s", ticker)
+			log.Println("WARN:", errMsg)
+			GenerateError(w, errMsg, http.StatusNotFound)
 			return
 		}
 
@@ -228,10 +253,13 @@ func main() {
 
 		// Check for invalid alert
 		if (direction == "below" && currentPrice < price) || (direction == "above" && currentPrice > price) {
-			msg := fmt.Sprintf("Current price is $%.2f, already %s $%.2f.", currentPrice, direction, price)
+			msg := fmt.Sprintf("Current price is $%.2f, already %s $%.2f", currentPrice, direction, price)
+			log.Printf("WARN: Invalid alert - %s", msg)
 			GenerateError(w, msg, http.StatusBadRequest)
 			return
 		}
+
+		log.Printf("Valid alert - Ticker: %s, Current: $%.2f, Target: $%.2f %s", ticker, currentPrice, price, direction)
 
 		// Valid alert
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -243,7 +271,19 @@ func main() {
 	// --------- Start Server ---------
 
 	// Start server
-	log.Println("🌐 Go Market Service running on :8080")
-	// Start HTTP server on port 8080. nil means default ServeMux is used.
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	port := ":8080"
+	log.Printf("🌐 Server starting on http://localhost%s", port)
+	log.Printf("📊 Available endpoints:")
+	log.Printf("   GET  http://localhost%s/health", port)
+	log.Printf("   GET  http://localhost%s/stocks?ticker=<symbol>&startDate=<date>&interval=<freq>", port)
+	log.Printf("   GET  http://localhost%s/check-alert?ticker=<symbol>&price=<price>&direction=<above|below>", port)
+
+	// Start HTTP server
+	server := &http.Server{
+		Addr:         port,
+		ReadTimeout:  6 * time.Second,
+		WriteTimeout: 6 * time.Second,
+	}
+
+	log.Fatal(server.ListenAndServe())
 }
