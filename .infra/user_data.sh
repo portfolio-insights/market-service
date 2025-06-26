@@ -28,5 +28,5 @@ git clone https://github.com/jakubstetz/market-service.git
 
 # Completion message
 echo ""
-echo "✅ EC2 setup complete. Run microservice.yaml workflow in GitHub Actions to deploy backend."
+echo "✅ EC2 setup complete. Run microservice.yaml workflow in GitHub Actions to deploy microservice."
 echo ""
